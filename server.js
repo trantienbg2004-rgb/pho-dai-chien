@@ -59,49 +59,64 @@ const rooms=new Map();
 // Biến cố sau quyết định: theo phương án của từng đội, minh bạch tác động thực tế.
 // Cùng một quyết định có thể gặp biến cố tốt, trung tính hoặc xấu.
 // Rủi ro ảnh hưởng đến biên độ kết quả, không biến một lựa chọn thành "đáp án sai".
-const profiles=[
- {name:'cân bằng',outcomes:[{weight:30,m:1.0,kind:'up'},{weight:50,m:0.3,kind:'mid'},{weight:20,m:-0.8,kind:'down'}]},
- {name:'bứt phá',outcomes:[{weight:38,m:2.4,kind:'up'},{weight:30,m:0.45,kind:'mid'},{weight:32,m:-1.9,kind:'down'}]},
- {name:'linh hoạt',outcomes:[{weight:46,m:1.55,kind:'up'},{weight:34,m:0.25,kind:'mid'},{weight:20,m:-1.25,kind:'down'}]}
-];
-const variations=[
- {up:['Đơn hàng tăng ngoài dự kiến','Khách quen giới thiệu thêm bạn bè','Đối tác phối hợp rất tốt'],mid:['Thị trường phản ứng đúng như dự báo','Kế hoạch diễn ra khá ổn định','Một số khâu triển khai bị chậm'],down:['Khách hàng thay đổi hành vi bất ngờ','Đối tác giao hàng gặp trục trặc','Chi phí phát sinh hơn dự tính']},
- {up:['Cơ hội bất ngờ: nhu cầu bùng nổ','Video nhận nhiều lời khen từ khách','Khách kéo đến sau một bài đăng tự nhiên'],mid:['Kết quả chỉ đạt mức trung bình','Doanh thu có tăng nhưng không đột biến','Mọi thứ diễn ra chậm hơn kỳ vọng'],down:['Một bài đăng tiêu cực lan truyền','Đối tác đột ngột hủy lịch','Lượng khách thực tế thấp hơn dự báo']},
- {up:['Đội vận hành xử lý cực kỳ hiệu quả','Chương trình gây được tiếng vang','Đối tác hỗ trợ vượt cam kết'],mid:['Phát sinh vấn đề nhỏ đã được xử lý','Khách phản hồi trái chiều','Kết quả gần mức dự kiến'],down:['Bếp bị quá tải đúng giờ cao điểm','Nguồn cung có thay đổi bất thường','Ưu đãi thu hút ít khách hơn dự kiến']}
-];
-const specific={
- '2-A-1':{
- up:['KOL đang lên xu hướng bất ngờ trở thành gương mặt cực kỳ được yêu thích!','Lượng khách đến quán tăng mạnh nhờ chiến dịch bắt đúng thời điểm.'],
- mid:['Video của KOL có nhiều lượt xem nhưng ít người sống gần quán.','Hiệu quả chuyển đổi thấp hơn kỳ vọng.'],
- down:['KOL bị cộng đồng phản đối sau một phát ngôn cũ.','Quán bị kéo vào tranh cãi và phải xử lý phản hồi.']
- },
- '2-A-0':{
- up:['KOL được thẩm định mang lại khách hàng trung thành','Video có tác động tích cực và phù hợp tệp khách hàng.'],
- mid:['KOL bất ngờ đổi lịch quay','Chiến dịch lùi lại, một phần chi phí chuẩn bị phát sinh.'],
- down:['Dù đã thẩm định, KOL vẫn vướng tranh cãi','Lượng khách mới thấp và cần khắc phục truyền thông.']
- },
- '2-A-2':{
- up:['Check-in nhận quẩy bất ngờ lan truyền','Nhiều khách đăng ảnh và rủ bạn bè tới ăn.'],
- mid:['Khách quen hưởng ứng tốt','Chương trình giữ chân khách nhưng tăng trưởng vừa phải.'],
- down:['Nhiều khách dùng ưu đãi nhưng không quay lại','Chi phí tặng quẩy tăng mà số khách trung thành không như dự báo.']
- }
+// V5: biến cố gắn trực tiếp với quyết định và khâu chuỗi giá trị.
+// Đơn vị tác động: demand = bát tiềm năng/tháng; reputation = điểm uy tín (0-100);
+// satisfaction = điểm hài lòng; unitCost = đồng/bát; cash = khoản thu/chi một lần.
+// Xác suất và tác động là giả định minh họa phục vụ học tập, không phải dữ liệu thực.
+const eventBank={
+ '0-A':[
+  {up:['Đơn hàng bổ sung giao kịp giờ trưa','Nhà làm bánh giao kịp, quán phục vụ hết lượt khách tăng cao.',180,3,5,-250000],mid:['Bánh phở về trễ 20 phút','Một số khách phải chờ nhưng quán vẫn xoay xở phục vụ được.',-65,-1,-2,-180000],down:['Lô bánh nhập gấp không đạt yêu cầu','Khâu kiểm tra đầu vào phát hiện bánh có dấu hiệu hư hỏng nên quán loại bỏ toàn bộ. Khách chờ lâu, một số khách phản ánh; tuyệt đối không sử dụng nguyên liệu không an toàn.',-410,-12,-15,-2600000]},
+  {up:['Nhập số lượng lớn đúng dịp cao điểm','Khách đến đông; lượng bánh dự trữ được sử dụng hết, chi phí trên mỗi bát giảm.',260,2,3,550000],mid:['Tồn kho tăng sau ngày đầu','Bánh phở còn dư, quán phải tăng bảo quản và theo dõi chất lượng.',-85,-2,-3,-650000],down:['Một phần bánh phở bị chua sau bảo quản','Quán hủy nguyên liệu không còn bảo đảm chất lượng, phát sinh phí xử lý và thiếu bánh cho ca sau.',-280,-7,-8,-1550000]},
+  {up:['Quán đối tác hỗ trợ ngay trong giờ cao điểm','Hai bên phối hợp trơn tru, khách vẫn được phục vụ kịp thời.',155,3,4,320000],mid:['Chi phí lấy hàng cao hơn dự kiến','Bánh được cung cấp đúng chất lượng nhưng phí vận chuyển và mua gấp tăng.',0,0,0,-420000],down:['Nguồn bánh chia sẻ không đủ số lượng','Quán đối tác cũng đông khách nên chỉ giao được nửa đơn, quán bỏ lỡ nhiều lượt khách.',-250,-4,-6,-650000]}
+ ],
+ '0-B':[
+  {up:['Combo tiêu thụ tốt và thịt được kiểm định đạt chuẩn','Quán kiểm tra nguyên liệu, bán hết phần an toàn và giảm thất thoát.',190,3,5,350000],mid:['Bán combo chậm hơn dự đoán','Nguyên liệu được kiểm tra nhưng tồn kho vẫn cao, cần thêm chi phí bảo quản.',-60,-1,-1,-420000],down:['Kiểm tra phát hiện lô thịt không đạt chuẩn','Quán chủ động ngừng sử dụng và tiêu hủy lô hàng; tránh nguy cơ mất an toàn nhưng chịu chi phí lớn.',-120,1,-1,-2450000]},
+  {up:['Hệ thống lạnh ổn định và lượng khách hồi phục','Lượng thịt bảo quản đúng chuẩn được sử dụng trước hạn, giảm hao hụt.',125,2,3,220000],mid:['Chi phí điện và giám sát tăng','Bảo quản đạt chuẩn nhưng chi phí kho lạnh cao hơn kế hoạch.',-35,0,0,-430000],down:['Tủ lạnh trục trặc qua đêm','Nhiệt độ bảo quản không đạt; quán ngừng sử dụng và hủy lô thịt có nguy cơ mất an toàn.',-145,-5,-7,-1950000]},
+  {up:['Combo minh bạch được khách đón nhận','Khách thích chương trình giới hạn với thịt được kiểm tra chất lượng.',240,5,5,170000],mid:['Chương trình hút khách nhưng giảm biên lợi nhuận','Quán bán nhiều combo song mức giảm giá khiến lãi không tăng tương ứng.',55,1,1,-360000],down:['Giảm giá không đủ để giải quyết tồn kho','Lượng khách mới ít, quán vẫn phải loại bỏ phần nguyên liệu không còn an toàn.',-135,-2,-3,-1200000]}
+ ],
+ '1-A':[
+  {up:['Nhà cung cấp chấp nhận hợp đồng giá ổn định','Nguồn thịt đạt chuẩn, giao đúng giờ và giảm biến động giá vốn.',170,4,4,580000],mid:['Đàm phán kéo dài thêm một tuần','Quán giữ nguồn hàng ổn định nhưng chưa có mức giá mới ngay.',-30,0,0,-250000],down:['Đối tác giao thiếu dù đã ký thỏa thuận','Quán phải mua bổ sung từ nguồn được kiểm định với giá cao để tránh mất khách.',-140,-3,-4,-850000]},
+  {up:['Liên kết mua chung đạt mức chiết khấu cao','Kiểm tra đầu vào đồng bộ giúp tiết kiệm tiền mua nguyên liệu.',210,3,4,680000],mid:['Phối hợp mua chung có chi phí vận chuyển','Mức giá sỉ tốt nhưng chi phí gom đơn, chia hàng cao hơn dự kiến.',-15,0,0,-250000],down:['Xe gom hàng giao trễ và thiếu lô','Hai quán phải dùng nguồn thay thế, tăng chi phí và chậm phục vụ.',-180,-3,-5,-1050000]},
+  {up:['Khách chấp nhận giá mới nhờ chất lượng ổn định','Giá bán tăng nhưng lượng khách giảm ít hơn dự tính.',125,4,4,450000],mid:['Khách so sánh giá với quán bên cạnh','Một nhóm khách chuyển quán, biên lợi nhuận cải thiện vừa phải.',-115,-2,-3,-200000],down:['Đối thủ giữ giá và tung ưu đãi','Khách nhạy cảm giá rời đi nhiều, số bát bán ra giảm mạnh.',-340,-6,-8,-480000]}
+ ],
+ '1-B':[
+  {up:['Định lượng 80g được tuân thủ ổn định','Nhân viên làm đều tay, ít hao hụt và khách hài lòng.',190,5,5,420000],mid:['Một số ca vẫn cân sai khẩu phần','Quán cần thêm thời gian huấn luyện và giám sát.',-35,-1,-1,-160000],down:['Giờ cao điểm nhân viên bỏ qua cân mẫu','Định lượng lại chênh lệch khiến khách phàn nàn, hao hụt tăng.',-170,-5,-6,-820000]},
+  {up:['Máy chia khẩu phần hoạt động chính xác','Tốc độ ra món tăng, sai lệch giảm; đầu tư bắt đầu phát huy hiệu quả.',245,5,5,730000],mid:['Máy cần hiệu chỉnh trong tuần đầu','Quán phải bảo trì, thời gian hoàn vốn dài hơn dự kiến.',-40,-1,-2,-650000],down:['Máy hỏng đúng giờ cao điểm','Quán quay lại thao tác thủ công, chi phí sửa chữa phát sinh.',-260,-5,-5,-1550000]},
+  {up:['Kiểm tra chéo phát hiện sai lệch kịp thời','Nhân viên hợp tác, mức hao hụt giảm rõ rệt.',150,3,4,390000],mid:['Thưởng giảm hao hụt làm tăng chi phí','Chi phí thưởng bù trừ phần tiết kiệm nguyên liệu.',-15,0,0,-210000],down:['Nhân viên hiểu sai mục tiêu thưởng','Một số ca tự giảm khẩu phần, khách phàn nàn và quán phải chấn chỉnh.',-225,-8,-10,-670000]}
+ ],
+ '2-A':[
+  {up:['KOL đã thẩm định đăng video được đón nhận','Khách mục tiêu ở gần quán đến đông; quảng bá có hiệu quả thực tế.',330,5,5,350000],mid:['KOL đổi lịch quay trong phút cuối','Quán phải sắp lịch lại, chiến dịch đến muộn hơn dự kiến.',-55,-1,-1,-200000],down:['Dù đã rà soát, KOL vướng tranh cãi bất ngờ','Quán dừng nội dung liên quan, giải thích minh bạch, nhưng lượng khách mới giảm.',-285,-7,-10,-850000]},
+  {up:['KOL đang nổi bất ngờ được công chúng yêu thích','Video lan truyền, khách kéo đến đông và quán thu lợi vượt mong đợi.',630,7,8,2000000],mid:['Video triệu lượt xem nhưng không đúng tệp khách','Lượt xem cao song khách ở xa, tiền quảng bá chuyển đổi thành đơn thấp.',-85,-1,-1,-650000],down:['KOL chưa thẩm định vướng bê bối','Quán bị liên đới trong tranh cãi; khách mới giảm, uy tín bị ảnh hưởng nhiều vòng.',-520,-13,-18,-2500000]},
+  {up:['Chương trình check-in tạo hiệu ứng truyền miệng','Khách thật giới thiệu bạn bè và quay lại vào các tuần sau.',290,5,7,420000],mid:['Chủ yếu khách cũ nhận quẩy miễn phí','Khách hài lòng nhưng số khách mới tăng không nhiều.',-30,1,2,-280000],down:['Chi phí ưu đãi vượt ngân sách','Nhiều khách nhận quà một lần, ít quay lại, lãi giảm.',-140,-1,-2,-750000]}
+ ],
+ '2-B':[
+  {up:['Khách sửa đánh giá sau khi được xử lý thỏa đáng','Quán đổi đơn và cải tiến hộp giữ nhiệt, khách tin tưởng trở lại.',265,7,9,380000],mid:['Bao bì mới hiệu quả nhưng chi phí cao','Phản hồi giảm, nhưng giá vốn đóng gói tăng ngắn hạn.',25,2,3,-320000],down:['Đối tác giao hàng tiếp tục giao trễ','Dù quán đã đổi hộp, nước dùng vẫn nguội và khách còn phàn nàn.',-150,-4,-6,-800000]},
+  {up:['Voucher kéo khách quay lại','Khách ghi nhận thái độ cầu thị, đơn giao hàng phục hồi.',220,5,6,250000],mid:['Một số khách dùng voucher nhưng lỗi giao chưa dứt','Quán phải tiếp tục phối hợp đối tác vận chuyển.',-10,0,1,-210000],down:['Shipper tiếp tục giao chậm giờ cao điểm','Khách nhận voucher nhưng phàn nàn mới xuất hiện, uy tín giảm.',-220,-6,-8,-630000]},
+  {up:['Đối tác mới giao nhanh vượt kỳ vọng','Thời gian giao hàng giảm, phở đến tay khách vẫn nóng.',255,6,7,310000],mid:['Chuyển đối tác phát sinh phí vận chuyển','Khách bớt phàn nàn nhưng phần lãi giao hàng chưa cải thiện.',15,1,2,-380000],down:['Đối tác mới quá tải trong ngày mưa','Nhiều đơn giao trễ, quán phải hoàn thêm phí và xử lý phản hồi.',-250,-7,-9,-930000]}
+ ],
+ '3-A':[
+  {up:['Bố trí lại bếp giúp ra món nhanh hơn','Khách bớt chờ và quy trình giảm thất thoát nguyên liệu.',265,5,7,490000],mid:['Nhân viên cần thời gian làm quen quy trình mới','Một vài ca phục vụ chậm trước khi thao tác ổn định.',-25,0,0,-180000],down:['Thiếu phối hợp trong ca cao điểm','Sơ chế và ra món bị lệch nhịp khiến nhiều khách bỏ đi.',-215,-5,-6,-670000]},
+  {up:['Hai phụ bếp mới xử lý giờ đông rất tốt','Công suất tăng, quán phục vụ thêm nhiều khách.',345,5,6,520000],mid:['Khách đến không nhiều như dự báo','Quán vẫn trả thêm tiền nhân công dù công suất không khai thác hết.',-60,-1,-1,-600000],down:['Nhân viên mới làm sai nhiều món','Quán mất chi phí nguyên liệu làm lại và khách chờ lâu hơn.',-240,-5,-7,-850000]},
+  {up:['Menu rút gọn được khách ủng hộ','Ra món nhanh, giảm sai sót và tiết kiệm nguyên liệu.',190,4,5,350000],mid:['Khách quen tiếc một số món','Quán phục vụ nhanh hơn nhưng số đơn không tăng nhiều.',-45,-1,-2,-130000],down:['Nhiều khách muốn món đã bị cắt','Khách chuyển sang đối thủ có thực đơn đa dạng.',-270,-6,-8,-470000]}
+ ],
+ '3-B':[
+  {up:['Phở đặc biệt được khách đặt thêm','Quán duy trì phở phổ thông và bán tốt phiên bản giá cao.',300,6,8,780000],mid:['Menu nhiều lựa chọn làm bếp chậm','Doanh thu tăng nhưng vận hành phức tạp hơn.',-45,-1,-2,-450000],down:['Bếp nhầm đơn thường và đặc biệt','Khách phàn nàn vì giá trị nhận được không đúng giá, phải đổi món.',-240,-7,-9,-920000]},
+  {up:['Khách nhạy giá chuyển sang quán rất đông','Tối ưu quy trình giúp chi phí/bát đủ thấp để kinh doanh có lãi.',410,4,6,430000],mid:['Khách tăng nhưng biên lãi mỏng','Sản lượng tăng, song lợi nhuận tăng ít hơn kỳ vọng.',65,1,1,-180000],down:['Giảm giá khiến bếp vượt công suất','Không đủ năng lực phục vụ giờ cao điểm, khách bỏ đi.',-290,-6,-7,-650000]},
+  {up:['Nhóm khách mới đánh giá cao trải nghiệm cao cấp','Khách sẵn sàng trả 65.000đ vì chất lượng và dịch vụ vượt trội.',370,7,9,1150000],mid:['Một phần khách cũ không theo mức giá mới','Giá bán cao hơn nhưng lượng khách bình dân giảm.',-160,-2,-3,-320000],down:['Khách cho rằng giá tăng không tương xứng','Khách để lại đánh giá tiêu cực, doanh thu giảm và uy tín suy yếu.',-430,-10,-12,-1100000]}
+ ]
 };
+const chanceProfiles=[
+ [[42,38,20],[35,40,25],[44,35,21]],
+ [[42,36,22],[36,37,27],[40,39,21]],
+ [[43,37,20],[36,30,34],[45,36,19]],
+ [[44,34,22],[36,36,28],[37,39,24]]
+];
 function twistFor(round,team,choice){
- const prof=profiles[(round*2+(team==='B'?1:0)+choice)%3];
- const roll=crypto.randomInt(100);let total=0;let item=prof.outcomes[0];
- for(const candidate of prof.outcomes){total+=candidate.weight;if(roll<total){item=candidate;break}}
- const custom=specific[`${round}-${team}-${choice}`];
- const pool=variations[(round+choice)%variations.length];
- const headlines=pool[item.kind];
- const idx=crypto.randomInt(headlines.length);
- const headline=custom?custom[item.kind][0]:headlines[idx];
- const description=custom?custom[item.kind][1]:({up:'Phương án phát huy tác dụng vượt dự kiến.',mid:'Những lợi ích và hạn chế của quyết định đều xuất hiện.',down:'Quán phải ứng phó phát sinh ngoài kế hoạch.'})[item.kind];
- const scale=round===2?1.6:1;
- return {headline,description,kind:item.kind,profile:prof.name,
- cash:Math.round(item.m*450000*scale),demand:Math.round(item.m*190*scale),
- satisfaction:Math.round(item.m*3)};
+ const variants=eventBank[`${round}-${team}`][choice];
+ const weights=chanceProfiles[round][choice];let n=crypto.randomInt(100),idx=n<weights[0]?0:n<weights[0]+weights[1]?1:2;
+ const v=variants[idx];return {kind:['up','mid','down'][idx],headline:v[0],description:v[1],demand:v[2],satisfaction:v[3],reputation:v[4],cash:v[5],chance:weights[idx]};
 }
-function newFin(){return {cash:0,customers:3000,price:50000,unitCost:25000,capacity:3100,satisfaction:75,history:[]}}
+function newFin(){return {cash:0,customers:3000,price:50000,unitCost:25000,capacity:3100,satisfaction:75,reputation:75,history:[]}}
 function makeCode(){let x;do{x=crypto.randomBytes(3).toString('hex').toUpperCase()}while(rooms.has(x));return x}
 function safeName(n){return String(n||'Người chơi').trim().slice(0,22)||'Người chơi'}
 function sanitize(r){return {code:r.code,status:r.status,round:r.round,totalRounds:rounds.length,scenario:r.status==='finished'?null:rounds[r.round]||null,teams:['A','B'].map(t=>({id:t,players:[...r.players.values()].filter(p=>p.team===t&&p.socketId).length,votes:[...r.votes.values()].filter(v=>v.team===t).length,finance:r.fin[t]})),last:r.last, timeLeft:r.deadline?Math.max(0,Math.ceil((r.deadline-Date.now())/1000)):null,deadline:r.deadline}}
@@ -110,10 +125,17 @@ function roster(r){io.to(r.code).emit('roster',[...r.players.values()].map(p=>({
 function resolve(r){if(r.status!=='voting')return;if(r.timer)clearTimeout(r.timer);const sc=rounds[r.round];r.status='results';r.deadline=null;let results={}; for(const team of ['A','B']){
  const teamScene=sc.teams[team];const tally=teamScene.options.map((_,i)=>[...r.votes.values()].filter(v=>v.team===team&&v.choice===i).length);
  let max=Math.max(...tally);let choice=tally.findIndex(n=>n===max);if(max===0)choice=1;
- const eff=teamScene.options[choice];const twist=twistFor(r.round,team,choice);const f=r.fin[team]; f.price+=eff.price||0;f.unitCost=Math.max(15000,f.unitCost+(eff.unitCost||0));f.satisfaction=Math.max(10,Math.min(100,f.satisfaction+eff.satisfaction+twist.satisfaction));f.capacity=Math.max(2300,f.capacity+(eff.capacity||0));
- const base=3000;const potential=Math.max(1700,Math.round(base+eff.demand+twist.demand+(f.satisfaction-75)*8-(f.price-50000)*0.018));const sold=Math.min(potential,f.capacity);
+ const eff=teamScene.options[choice];const twist=twistFor(r.round,team,choice);const f=r.fin[team];
+ const before={price:f.price,unitCost:f.unitCost,capacity:f.capacity,satisfaction:f.satisfaction,reputation:f.reputation,customers:f.customers,cash:f.cash};
+ f.price+=eff.price||0;f.unitCost=Math.max(15000,f.unitCost+(eff.unitCost||0));f.satisfaction=Math.max(10,Math.min(100,f.satisfaction+(eff.satisfaction||0)+twist.satisfaction));f.reputation=Math.max(10,Math.min(100,f.reputation+twist.reputation));f.capacity=Math.max(2300,f.capacity+(eff.capacity||0));
+ const after={price:f.price,unitCost:f.unitCost,capacity:f.capacity,satisfaction:f.satisfaction,reputation:f.reputation};
+ const base=3000;const demandFromQuality=(f.satisfaction-75)*7+(f.reputation-75)*12;
+ const demandFromPrice=-(f.price-50000)*0.018;
+ const potential=Math.max(1700,Math.round(base+eff.demand+twist.demand+(f.satisfaction-75)*7+(f.reputation-75)*12-(f.price-50000)*0.018));const sold=Math.min(potential,f.capacity);
  const fixed=30000000;const monthly=(f.price-f.unitCost)*sold-fixed+eff.cash+twist.cash;
- f.cash+=monthly; f.customers=sold;const detail={team,choice,tally,sold,unserved:Math.max(0,potential-sold),revenue:f.price*sold,variableCost:f.unitCost*sold,fixedCost:fixed,oneoff:eff.cash+twist.cash,twist:{headline:twist.headline,description:twist.description,cash:twist.cash,demand:twist.demand,kind:twist.kind,profile:twist.profile},profit:monthly,cumulative:f.cash,note:eff.lesson,decision:eff.text,scenarioTitle:teamScene.title,defaulted:max===0};f.history.push(detail);results[team]=detail;
+ f.cash+=monthly; f.customers=sold;const detail={team,choice,tally,sold,
+ before,after,roundNumber:r.round+1,decisionEffects:{demand:eff.demand,cash:eff.cash,price:eff.price||0,unitCost:eff.unitCost||0,capacity:eff.capacity||0,satisfaction:eff.satisfaction||0},demandFromQuality,demandFromPrice,reasoning:{cause:`Quán chọn “${eff.text}”. ${twist.description}`,chain:`Quyết định tạo thay đổi ở khâu quản trị liên quan: ${eff.lesson} Biến cố ${twist.headline.toLowerCase()} làm khách tiềm năng ${twist.demand>=0?'tăng':'giảm'} ${Math.abs(twist.demand)} lượt, uy tín ${twist.reputation>=0?'tăng':'giảm'} ${Math.abs(twist.reputation)} điểm, hài lòng ${twist.satisfaction>=0?'tăng':'giảm'} ${Math.abs(twist.satisfaction)} điểm.`,future:`Sang vòng sau, uy tín ${f.reputation}/100, hài lòng ${f.satisfaction}/100, giá ${f.price.toLocaleString('vi-VN')}đ và chi phí mỗi bát ${f.unitCost.toLocaleString('vi-VN')}đ vẫn được giữ lại để tính tiếp lượng khách và lợi nhuận.`},
+ unserved:Math.max(0,potential-sold),revenue:f.price*sold,variableCost:f.unitCost*sold,fixedCost:fixed,oneoff:eff.cash+twist.cash,twist:{headline:twist.headline,description:twist.description,cash:twist.cash,demand:twist.demand,kind:twist.kind,reputation:twist.reputation,satisfaction:twist.satisfaction},profit:monthly,cumulative:f.cash,note:eff.lesson,decision:eff.text,scenarioTitle:teamScene.title,defaulted:max===0};detail.reputation=f.reputation;detail.satisfaction=f.satisfaction;detail.potential=potential;f.history.push(detail);results[team]=detail;
  }
  r.last=results;broadcast(r);
 }
