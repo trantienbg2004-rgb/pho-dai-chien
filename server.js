@@ -7,6 +7,7 @@ const app=express(); const server=http.createServer(app);const io=new Server(ser
 app.get('/',(req,res)=>res.redirect('/play'));
 app.get('/admin',(req,res)=>res.sendFile(path.join(__dirname,'public','admin.html')));
 app.get('/play',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
+app.get('/health',(req,res)=>res.json({ok:true,version:'6.3',status:'ready'}));
 app.use(express.static(path.join(__dirname,'public')));
 const PORT=process.env.PORT||3000;
 // Mỗi vòng mỗi đội gặp bài toán khác nhau dựa trên chuỗi giá trị quán phở.
@@ -112,20 +113,31 @@ const chanceProfiles=[
  [[44,34,22],[36,36,28],[37,39,24]]
 ];
 function twistFor(round,team,choice){
- const variants=eventBank[`${round}-${team}`][choice];
- const weights=chanceProfiles[round][choice];let n=crypto.randomInt(100),idx=n<weights[0]?0:n<weights[0]+weights[1]?1:2;
- const v=variants[idx];return {kind:['up','mid','down'][idx],headline:v[0],description:v[1],demand:v[2],satisfaction:v[3],reputation:v[4],cash:v[5],chance:weights[idx]};
+ const variants=eventBank[`${round}-${team}`]?.[choice];
+ const weights=chanceProfiles[round]?.[choice];
+ if(!variants||!weights||weights.length!==3||weights.reduce((x,y)=>x+y,0)!==100){
+   throw new Error(`Thiếu cấu hình biến cố vòng ${round+1}, quán ${team}, đáp án ${choice+1}`);
+ }
+ const n=crypto.randomInt(100);
+ const idx=n<weights[0]?0:n<weights[0]+weights[1]?1:2;
+ const kind=['up','mid','down'][idx];
+ // Dữ liệu eventBank được lưu theo khóa up / mid / down, KHÔNG phải mảng 0 / 1 / 2.
+ const v=variants[kind];
+ if(!Array.isArray(v)||v.length!==6||!v.slice(2).every(Number.isFinite)){
+   throw new Error(`Biến cố ${round+1}-${team}-${choice+1}-${kind} không hợp lệ`);
+ }
+ return {kind,headline:v[0],description:v[1],demand:v[2],satisfaction:v[3],reputation:v[4],cash:v[5],chance:weights[idx]};
 }
 function newFin(){return {cash:0,customers:3000,price:50000,unitCost:25000,capacity:3100,satisfaction:75,reputation:75,history:[]}}
 function makeCode(){let x;do{x=crypto.randomBytes(3).toString('hex').toUpperCase()}while(rooms.has(x));return x}
 function safeName(n){return String(n||'Người chơi').trim().slice(0,22)||'Người chơi'}
-function sanitize(r){return {code:r.code,status:r.status,round:r.round,totalRounds:rounds.length,scenario:r.status==='finished'?null:rounds[r.round]||null,teams:['A','B'].map(t=>({id:t,players:[...r.players.values()].filter(p=>p.team===t&&p.socketId).length,votes:[...r.votes.values()].filter(v=>v.team===t).length,finance:r.fin[t]})),last:r.last, timeLeft:r.deadline?Math.max(0,Math.ceil((r.deadline-Date.now())/1000)):null,deadline:r.deadline}}
+function sanitize(r){return {code:r.code,version:'6.3',status:r.status,round:r.round,totalRounds:rounds.length,scenario:r.status==='finished'?null:rounds[r.round]||null,teams:['A','B'].map(t=>({id:t,players:[...r.players.values()].filter(p=>p.team===t&&p.socketId).length,votes:[...r.votes.values()].filter(v=>v.team===t).length,finance:r.fin[t]})),last:r.last, timeLeft:r.deadline?Math.max(0,Math.ceil((r.deadline-Date.now())/1000)):null,deadline:r.deadline}}
 function broadcast(r){io.to(r.code).emit('state',sanitize(r))}
 function roster(r){io.to(r.code).emit('roster',[...r.players.values()].map(p=>({name:p.name,team:p.team})))}
-function resolve(r){if(r.status!=='voting')return;if(r.timer)clearTimeout(r.timer);const sc=rounds[r.round];r.status='results';r.deadline=null;let results={}; for(const team of ['A','B']){
+function resolve(r){if(r.status!=='voting')return false;const sc=rounds[r.round];let results={};const nextFin={}; for(const team of ['A','B']){
  const teamScene=sc.teams[team];const tally=teamScene.options.map((_,i)=>[...r.votes.values()].filter(v=>v.team===team&&v.choice===i).length);
  let max=Math.max(...tally);let choice=tally.findIndex(n=>n===max);if(max===0)choice=1;
- const eff=teamScene.options[choice];const twist=twistFor(r.round,team,choice);const f=r.fin[team];
+ const eff=teamScene.options[choice];const twist=twistFor(r.round,team,choice);const f={...r.fin[team],history:[...r.fin[team].history]};
  const before={price:f.price,unitCost:f.unitCost,capacity:f.capacity,satisfaction:f.satisfaction,reputation:f.reputation,customers:f.customers,cash:f.cash};
  f.price+=eff.price||0;f.unitCost=Math.max(15000,f.unitCost+(eff.unitCost||0));f.satisfaction=Math.max(10,Math.min(100,f.satisfaction+(eff.satisfaction||0)+twist.satisfaction));f.reputation=Math.max(10,Math.min(100,f.reputation+twist.reputation));f.capacity=Math.max(2300,f.capacity+(eff.capacity||0));
  const after={price:f.price,unitCost:f.unitCost,capacity:f.capacity,satisfaction:f.satisfaction,reputation:f.reputation};
@@ -135,9 +147,17 @@ function resolve(r){if(r.status!=='voting')return;if(r.timer)clearTimeout(r.time
  const fixed=30000000;const monthly=(f.price-f.unitCost)*sold-fixed+eff.cash+twist.cash;
  f.cash+=monthly; f.customers=sold;const detail={team,choice,tally,sold,
  before,after,roundNumber:r.round+1,decisionEffects:{demand:eff.demand,cash:eff.cash,price:eff.price||0,unitCost:eff.unitCost||0,capacity:eff.capacity||0,satisfaction:eff.satisfaction||0},demandFromQuality,demandFromPrice,reasoning:{cause:`Quán chọn “${eff.text}”. ${twist.description}`,chain:`Quyết định tạo thay đổi ở khâu quản trị liên quan: ${eff.lesson} Biến cố ${twist.headline.toLowerCase()} làm khách tiềm năng ${twist.demand>=0?'tăng':'giảm'} ${Math.abs(twist.demand)} lượt, uy tín ${twist.reputation>=0?'tăng':'giảm'} ${Math.abs(twist.reputation)} điểm, hài lòng ${twist.satisfaction>=0?'tăng':'giảm'} ${Math.abs(twist.satisfaction)} điểm.`,future:`Sang vòng sau, uy tín ${f.reputation}/100, hài lòng ${f.satisfaction}/100, giá ${f.price.toLocaleString('vi-VN')}đ và chi phí mỗi bát ${f.unitCost.toLocaleString('vi-VN')}đ vẫn được giữ lại để tính tiếp lượng khách và lợi nhuận.`},
- unserved:Math.max(0,potential-sold),revenue:f.price*sold,variableCost:f.unitCost*sold,fixedCost:fixed,oneoff:eff.cash+twist.cash,twist:{headline:twist.headline,description:twist.description,cash:twist.cash,demand:twist.demand,kind:twist.kind,reputation:twist.reputation,satisfaction:twist.satisfaction},profit:monthly,cumulative:f.cash,note:eff.lesson,decision:eff.text,scenarioTitle:teamScene.title,defaulted:max===0};detail.reputation=f.reputation;detail.satisfaction=f.satisfaction;detail.potential=potential;f.history.push(detail);results[team]=detail;
+ unserved:Math.max(0,potential-sold),revenue:f.price*sold,variableCost:f.unitCost*sold,fixedCost:fixed,oneoff:eff.cash+twist.cash,twist:{headline:twist.headline,description:twist.description,cash:twist.cash,demand:twist.demand,kind:twist.kind,reputation:twist.reputation,satisfaction:twist.satisfaction},profit:monthly,cumulative:f.cash,note:eff.lesson,decision:eff.text,scenarioTitle:teamScene.title,defaulted:max===0};detail.reputation=f.reputation;detail.satisfaction=f.satisfaction;detail.potential=potential;f.history.push(detail);results[team]=detail;nextFin[team]=f;
  }
- r.last=results;broadcast(r);
+ // Commit kết quả hai quán cùng một lúc, tránh cộng tiền hai lần nếu có lỗi giữa chừng.
+ if(r.timer)clearTimeout(r.timer);
+ r.timer=null;
+ r.fin=nextFin;
+ r.status='results';
+ r.deadline=null;
+ r.last=results;
+ broadcast(r);
+ return true;
 }
 // Mỗi lệnh Admin mang mã phòng + khóa riêng, không phụ thuộc socket.data cũ.
 function authorizedHost(socket, payload, ack){
@@ -164,7 +184,7 @@ io.on('connection',socket=>{
   if(r.round>=rounds.length){r.status='finished';broadcast(r);return ack?.({ok:true,status:r.status})}
   r.status='voting';r.last=null;r.votes.clear();r.deadline=Date.now()+35000;
   if(r.timer)clearTimeout(r.timer);
-  r.timer=setTimeout(()=>{try{resolve(r)}catch(e){console.error('Auto resolve error:',e)}},35000);
+  r.timer=setTimeout(()=>{try{resolve(r)}catch(e){console.error('Auto resolve error:',e);io.to(r.code).emit('game:error','Không tính được kết quả tự động. Người điều hành vui lòng bấm Chốt phiếu.')}},35000);
   broadcast(r);ack?.({ok:true,status:r.status});
  });
  socket.on('host:close',(payload,ack)=>{
