@@ -1,4 +1,4 @@
-# PHỞ ĐẠI CHIẾN V7.1 — TRỌN BỘ (THAY HOÀN TOÀN MÃ CŨ)
+# PHỞ ĐẠI CHIẾN V7.2 — TRỌN BỘ (THAY HOÀN TOÀN MÃ CŨ)
 
 Mô phỏng kinh doanh hai quán phở A/B dựa trên bài thuyết trình về quản trị chi phí chuỗi giá trị (Michael Porter). Mỗi phe có tình huống và phương án riêng. Người chơi bình chọn trên điện thoại/máy tính; Admin công bố biến cố và lợi nhuận trên màn hình ClassIn.
 
@@ -27,11 +27,11 @@ pho-dai-chien/
 2. Vào kho GitHub `trantienbg2004-rgb/pho-dai-chien` của bạn.
 3. Xóa các file cũ trong thư mục gốc, đồng thời xóa các file cũ bên trong `public/`. Đặc biệt xóa những file HTML bị đặt nhầm ở thư mục gốc như `index.html`, `admin.html`, `admin.html.html` nếu có. **KHÔNG xóa kho GitHub hoặc dịch vụ Render.**
 4. Trở lại **thư mục gốc** của kho trên GitHub. Chọn **Add file > Upload files**.
-5. Mở thư mục V7.1 vừa giải nén trong Windows. Nhấn Ctrl + A để chọn **tất cả nội dung bên trong** (không kéo thư mục bọc ngoài), sau đó kéo thả vào vùng Upload của GitHub. Kéo kèm cả các thư mục `public` và `tests`.
+5. Mở thư mục V7.2 vừa giải nén trong Windows. Nhấn Ctrl + A để chọn **tất cả nội dung bên trong** (không kéo thư mục bọc ngoài), sau đó kéo thả vào vùng Upload của GitHub. Kéo kèm cả các thư mục `public` và `tests`.
 6. **Kiểm tra trên GitHub trước khi Commit:** ở thư mục gốc có `server.js`, `game-engine.js`, `game-data.js`, `package.json`, `public`. Bên trong `public` có đúng `admin.html`, `index.html`, `theme.css`, `shared.js`. Không có file `admin.html.html`.
 7. Nhấn **Commit changes**.
 8. Render của bạn sẽ tự Deploy commit mới. Nếu chưa: Render > `pho-dai-chien` > **Manual Deploy > Deploy latest commit**. Đợi đến khi **Live**.
-9. Vào `https://pho-dai-chien.onrender.com/health`. Trang phải hiển thị `"version":"7.1.0"`. Sau đó mở một cửa sổ Admin mới, **tạo phòng mới**. Không dùng mã phòng cũ.
+9. Vào `https://pho-dai-chien.onrender.com/health`. Trang phải hiển thị `"version":"7.2.0"`. Sau đó mở một cửa sổ Admin mới, **tạo phòng mới**. Không dùng mã phòng cũ.
 
 ## Đường dẫn
 
@@ -74,7 +74,7 @@ Sau đó truy cập `http://localhost:3000/admin` và `http://localhost:3000/pla
 
 Render Free có thể ngủ khi không có truy cập; phòng và trạng thái được giữ trong RAM nên sẽ mất nếu máy chủ ngủ/khởi động lại/triển khai bản mới. Hãy mở game trước giờ học, cho cả lớp vào và tránh deploy giữa trận. Nếu mất phòng, tạo mã phòng mới. Đây là giới hạn của lưu trữ RAM chứ không phải lỗi nút chốt phiếu.
 
-## Thay đổi V7.1 — Giao diện công bố & cơ chế cạnh tranh
+## Thay đổi V7.2 — Giao diện công bố & cơ chế cạnh tranh
 
 - Trên màn hình **Admin sau khi chốt**, phần công bố ưu tiên: Quyết định → Biến cố → Lãi/lỗ vòng → Số bát thực tế → Hài lòng/Uy tín. Hai quán vẫn nằm ngang trên PC.
 - Các công thức chi tiết được **ẩn trong mục “Xem chi tiết cách tính & tác động dài hạn”**, chỉ mở khi muốn giải thích sâu cho giảng viên.

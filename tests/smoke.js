@@ -42,6 +42,25 @@ function engineChecks(){
  G.joinRoom(tie,{id:'tieperson002',name:'B',team:'A',socketId:'b'});
  G.vote(tie,'tieperson001',0);G.vote(tie,'tieperson002',1);
  const w=G.closeRound(tie,()=>0);eq(w.last.A.tied,true,'Đồng phiếu có bốc thăm minh bạch');
+ // Kiểm chứng quy luật giá/chất lượng: giá rẻ hơn + hài lòng cao hơn tăng NHU CẦU,
+ // nhưng công suất có thể khiến số bán thực tế không tăng tương ứng.
+ function scenario(price, satisfaction,capacity=3500){
+  const x=G.createRoom('TEST12','secret');
+  x.finance.A.price=price;x.finance.A.satisfaction=satisfaction;x.finance.A.capacity=capacity;
+  G.startRound(x,35);
+  G.joinRoom(x,{name:'Lan',team:'A',id:'scenario001',socketId:'s'});
+  G.vote(x,'scenario001',0);
+  return G.closeRound(x,()=>55).last.A;
+ }
+ const standard=scenario(50000,75,5000),attractive=scenario(45000,90,5000);
+ ok(attractive.financial.potential>standard.financial.potential,'Giá thấp + hài lòng cao -> nhu cầu cao hơn khi mọi yếu tố khác không đổi');
+ eq(attractive.financial.sold,attractive.financial.potential,'Đủ công suất thì bán đúng theo nhu cầu');
+ const limited=scenario(45000,90,2800);
+ eq(limited.financial.sold,limited.after.capacity,'Bếp quá tải: bán thực tế bằng công suất đã điều chỉnh');
+ ok(limited.financial.potential>limited.financial.sold,'Có khách tiềm năng chưa được phục vụ dù giá hấp dẫn');
+ // Lãi phụ thuộc biên đóng góp chứ không chỉ số bát, đúng như tình huống người dùng.
+ const a=3141*(53000-25000),b=3300*(45000-21600);
+ ok(b< a,'Bán 3300 bát giá 45k vẫn có thể tạo lãi góp thấp hơn bán 3141 bát giá 53k');
  console.log(`Engine: ${checks} kiểm tra thành công`);
 }
 class FakeSocket{

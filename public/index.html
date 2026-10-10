@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vào chơi • Phở Đại Chiến V7</title><link rel="stylesheet" href="/theme.css"></head>
-<body><div class="shell"><header class="header"><div class="logo">🍜 PHỞ <b>ĐẠI CHIẾN V7</b></div><span class="mini-tag">NGƯỜI CHƠI</span></header><main id="app"></main></div>
-<script src="/socket.io/socket.io.js"></script><script src="/shared.js"></script>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vào chơi • Phở Đại Chiến V7.2</title><link rel="stylesheet" href="/theme.css?v=7.2.0"></head>
+<body><div class="shell"><header class="header"><div class="logo">🍜 PHỞ <b>ĐẠI CHIẾN V7.2</b></div><span class="mini-tag">NGƯỜI CHƠI</span></header><main id="app"></main></div>
+<script src="/socket.io/socket.io.js"></script><script src="/shared.js?v=7.2.0"></script>
 <script>
 'use strict';
-const app=document.getElementById('app'),socket=io(),KEY='pho_v7_player';
+const app=document.getElementById('app'),socket=io(),KEY='pho_v71_player';
 const urlRoom=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
 let code='',name='',team='',playerId='',state=null,selected=null,connected=false,joining=false;
 function persist(){sessionStorage.setItem(KEY,JSON.stringify({code,name,team,playerId}));}

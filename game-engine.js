@@ -1,7 +1,7 @@
 'use strict';
 const crypto=require('crypto');
 const {rounds,eventBank,chanceProfiles}=require('./game-data');
-const VERSION='7.1.0';
+const VERSION='7.2.0';
 const N=30000000, MIN=15000;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const teams=['A','B'];
