@@ -1,6 +1,6 @@
 {
   "name": "pho-dai-chien",
-  "version": "7.0.0",
+  "version": "7.1.0",
   "private": true,
   "description": "Game hai quan pho - quan tri chi phi chuoi gia tri - 2 phe bo phieu truc tuyen",
   "main": "server.js",

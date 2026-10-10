@@ -1,7 +1,7 @@
 'use strict';
 const crypto=require('crypto');
 const {rounds,eventBank,chanceProfiles}=require('./game-data');
-const VERSION='7.0.0';
+const VERSION='7.1.0';
 const N=30000000, MIN=15000;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const teams=['A','B'];
@@ -20,7 +20,7 @@ function verifyData(){
  return true;
 }
 verifyData();
-function initFin(){return {cumulative:0,sold:3000,price:50000,unitCost:25000,capacity:3100,satisfaction:75,reputation:75,history:[]};}
+function initFin(){return {cumulative:0,sold:3000,potential:3000,price:50000,unitCost:25000,capacity:3100,satisfaction:75,reputation:75,history:[]};}
 function createRoom(code,secret){return {code,secret,status:'lobby',round:0,deadline:null,players:new Map(),votes:new Map(),finance:{A:initFin(),B:initFin()},last:null,version:VERSION};}
 function joinRoom(room,{name,team,id,socketId}){
  if(room.status==='finished')throw Error('Trận đấu đã kết thúc.');
@@ -66,19 +66,30 @@ function decisionForTeam(room,t,rand){
  const choice=unvoted?1:leaders.length===1?leaders[0]:leaders[rand()%leaders.length];
  return {choice,tallies,unvoted,tied};
 }
-function computeTeam(room,t,decision,rand){
- const sc=rounds[room.round].teams[t],opt=sc.options[decision.choice],event=randomEvent(room.round,t,decision.choice,rand);
+// Cả hai quán đều đối mặt cùng một thị trường. Trước tiên quyết định + biến cố,
+// sau đó mới tính khách hàng, trong đó có phần dịch chuyển khách giữa hai quán.
+function prepareTeam(room,t,rand){
+ const decision=decisionForTeam(room,t,rand);
+ const sc=rounds[room.round].teams[t],opt=sc.options[decision.choice];
+ const event=randomEvent(room.round,t,decision.choice,rand);
  const before=room.finance[t];
- const price=clamp(before.price+(opt.price||0),30000,85000);
- const unitCost=clamp(before.unitCost+(opt.unitCost||0),MIN,45000);
- const capacity=clamp(before.capacity+(opt.capacity||0),1800,5000);
- const satisfaction=clamp(before.satisfaction+(opt.satisfaction||0)+event.satisfaction,10,100);
- const reputation=clamp(before.reputation+event.reputation,10,100);
- // Hiệu ứng vòng trước: 25% mức chênh số bát đã bán vẫn ảnh hưởng tháng mới.
+ return {decision,sc,opt,event,before,
+  price:clamp(before.price+(opt.price||0),30000,85000),
+  unitCost:clamp(before.unitCost+(opt.unitCost||0),MIN,45000),
+  capacity:clamp(before.capacity+(opt.capacity||0),1800,5000),
+  satisfaction:clamp(before.satisfaction+(opt.satisfaction||0)+event.satisfaction,10,100),
+  reputation:clamp(before.reputation+event.reputation,10,100)};
+}
+function computeTeam(room,t,plan,opponent){
+ const {decision,sc,opt,event,before,price,unitCost,capacity,satisfaction,reputation}=plan;
+ // Hai yếu tố riêng biệt: sức hút tuyệt đối và lượng khách dịch chuyển từ đối thủ.
+ // Giảm giá / tăng hài lòng / tăng uy tín luôn nâng NHU CẦU trong cùng điều kiện.
+ // Số bán thực tế có thể bị chặn bởi công suất; giá thấp không mặc nhiên lãi cao.
  const retention=Math.round((before.sold-3000)*0.25);
  const qualityImpact=(satisfaction-75)*7+(reputation-75)*12;
  const priceImpact=Math.round((50000-price)*0.018);
- const potential=Math.max(0,Math.round(3000+retention+(opt.demand||0)+event.demand+qualityImpact+priceImpact));
+ const competitionImpact=clamp(Math.round((opponent.price-price)*0.011+(satisfaction-opponent.satisfaction)*4+(reputation-opponent.reputation)*6),-500,500);
+ const potential=Math.max(0,Math.round(3000+retention+(opt.demand||0)+event.demand+qualityImpact+priceImpact+competitionImpact));
  const sold=Math.min(potential,capacity);
  const revenue=price*sold;
  const variableCost=unitCost*sold;
@@ -86,12 +97,12 @@ function computeTeam(room,t,decision,rand){
  const oneOff=(opt.cash||0)+event.cash;
  const profit=revenue-variableCost-fixedCost+oneOff;
  const cumulative=before.cumulative+profit;
- const after={cumulative,sold,price,unitCost,capacity,satisfaction,reputation,history:before.history.slice()};
+ const after={cumulative,sold,potential,price,unitCost,capacity,satisfaction,reputation,history:before.history.slice()};
  const result={team:t,round:room.round+1,scenario:sc.title,choice:decision.choice,decision:opt.text,tallies:decision.tallies,unvoted:decision.unvoted,tied:decision.tied,event,lesson:opt.lesson,
-   before:{sold:before.sold,price:before.price,unitCost:before.unitCost,capacity:before.capacity,satisfaction:before.satisfaction,reputation:before.reputation,cumulative:before.cumulative},
-   after:{sold,price,unitCost,capacity,satisfaction,reputation,cumulative},
-   effects:{decisionDemand:opt.demand||0,eventDemand:event.demand,carryover:retention,qualityImpact,priceImpact,decisionSatisfaction:opt.satisfaction||0,decisionCapacity:opt.capacity||0},
-   financial:{potential,sold,unserved:Math.max(0,potential-sold),revenue,variableCost,fixedCost,decisionCash:opt.cash||0,eventCash:event.cash,oneOff,profit,cumulative}
+  before:{sold:before.sold,potential:before.potential??before.sold,price:before.price,unitCost:before.unitCost,capacity:before.capacity,satisfaction:before.satisfaction,reputation:before.reputation,cumulative:before.cumulative},
+  after:{sold,potential,price,unitCost,capacity,satisfaction,reputation,cumulative},
+  effects:{decisionDemand:opt.demand||0,eventDemand:event.demand,carryover:retention,qualityImpact,priceImpact,competitionImpact,decisionSatisfaction:opt.satisfaction||0,decisionCapacity:opt.capacity||0},
+  financial:{potential,sold,unserved:Math.max(0,potential-sold),revenue,variableCost,fixedCost,decisionCash:opt.cash||0,eventCash:event.cash,oneOff,profit,cumulative,marginPerBowl:price-unitCost,marginTotal:(price-unitCost)*sold}
  };
  after.history.push(result);
  return {after,result};
@@ -99,9 +110,11 @@ function computeTeam(room,t,decision,rand){
 function closeRound(room,rand=()=>crypto.randomInt(100)){
  if(room.status==='results')return {already:true,last:room.last};
  if(room.status!=='voting')throw Error('Chưa có vòng đang bỏ phiếu.');
- // Tính đủ hai đội trước khi thay đổi trạng thái; chốt lặp không nhân đôi lãi.
+ // Cả hai biến cố được xác định trước, tính kết quả trên cùng một mặt bằng so sánh.
+ const plans={A:prepareTeam(room,'A',rand),B:prepareTeam(room,'B',rand)};
  const results={};const next={};
- for(const t of teams){const dc=decisionForTeam(room,t,rand),out=computeTeam(room,t,dc,rand);results[t]=out.result;next[t]=out.after;}
+ for(const t of teams){const other=t==='A'?'B':'A';const out=computeTeam(room,t,plans[t],plans[other]);results[t]=out.result;next[t]=out.after;}
+ // Chỉ commit khi cả hai đội đã tính xong: tránh cập nhật tài chính nửa vời.
  room.finance=next;room.status='results';room.deadline=null;room.last=results;
  return {already:false,last:results};
 }

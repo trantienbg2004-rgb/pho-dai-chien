@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vào chơi • Phở Đại Chiến V7.1</title><link rel="stylesheet" href="/theme.css?v=7.1.0"></head>
+<body><div class="shell"><header class="header"><div class="logo">🍜 PHỞ <b>ĐẠI CHIẾN V7.1</b></div><span class="mini-tag">NGƯỜI CHƠI</span></header><main id="app"></main></div>
+<script src="/socket.io/socket.io.js"></script><script src="/shared.js?v=7.1.0"></script>
+<script>
+'use strict';
+const app=document.getElementById('app'),socket=io(),KEY='pho_v71_player';
+const urlRoom=(new URLSearchParams(location.search).get('room')||'').toUpperCase();
+let code='',name='',team='',playerId='',state=null,selected=null,connected=false,joining=false;
+function persist(){sessionStorage.setItem(KEY,JSON.stringify({code,name,team,playerId}));}
+function disconnectSession(){sessionStorage.removeItem(KEY);code='';name='';team='';playerId='';selected=null;state=null;render();}
+function enter(){
+ if(joining)return;
+ const nameRaw=document.getElementById('guest-name')?.value.trim()||'';
+ const codeRaw=(document.getElementById('guest-code')?.value||'').trim().toUpperCase();
+ if(!nameRaw)return toast('Hãy nhập tên của bạn.');
+ if(!/^[0-9A-F]{6}$/.test(codeRaw))return toast('Mã phòng gồm 6 ký tự do Admin cấp.');
+ if(!team)return toast('Bạn cần chọn một trong hai quán phở.');
+ if(!socket.connected)return toast('Chưa kết nối Internet. Đợi vài giây và thử lại.');
+ joining=true;
+ const reuse=code===codeRaw?playerId:null;
+ socket.timeout(12000).emit('player:join',{name:nameRaw,code:codeRaw,team,playerId:reuse},(err,res)=>{
+  joining=false;
+  if(err||!res?.ok)return toast(res?.error||'Không vào được phòng. Hãy thử lại.');
+  code=res.code;name=nameRaw;playerId=res.id;team=res.team;persist();toast('Vào QUÁN '+team+' thành công!');render();
+ });
+}
+function rejoin(){if(!code||!playerId)return;
+ socket.timeout(11000).emit('player:join',{code,name,team,playerId},(err,res)=>{
+  if(err||!res?.ok){toast('Phòng chơi không còn trên máy chủ. Nhập mã mới để tham gia.');disconnectSession();return;}
+  render();
+ });
+}
+function vote(choice){if(!state||state.status!=='voting')return;
+ if(state.myVote!==null&&state.myVote!==undefined)return toast('Bạn đã bỏ phiếu rồi.');
+ if(!Number.isInteger(choice))return toast('Chọn một phương án trước.');
+ if(!socket.connected)return toast('Mất kết nối. Hãy chờ kết nối lại.');
+ socket.timeout(11000).emit('player:vote',{choice},(err,res)=>{
+  if(err||!res?.ok){toast(res?.error||'Không gửi được phiếu. Vui lòng thử lại.');return;}
+  selected=null;toast('Đã ghi nhận 1 phiếu của bạn!');render();
+ });
+}
+function teamBox(t){return `<div class="stat"><small>🍜 Quán ${t.id}</small><strong>${t.count} thành viên</strong><span class="muted">${t.votes} phiếu vòng này</span></div>`}
+function lobby(){return `<section class="panel section"><p class="eyebrow">ĐÃ THAM GIA PHÒNG ${e(code)}</p><h2>✅ Bạn thuộc phe QUÁN ${e(team)}</h2><p class="subtle">Chờ Admin bắt đầu vòng. Mỗi người chỉ được chọn một phương án mỗi vòng.</p></section>`}
+function roomTop(){return `<div class="panel soft"><div class="title-divider"><div><p class="eyebrow">PHÒNG ${e(code)}</p><h2 class="section-title">Bạn đang ở QUÁN <span class="${team==='A'?'a-text':'b-text'}">${e(team)}</span></h2><p class="muted">${e(name)} · ${state?.status==='voting'?'Đang bỏ phiếu':state?.status==='results'?'Đã có kết quả':state?.status==='finished'?'Kết thúc':'Chờ bắt đầu'}</p></div><span class="chip">${connected?'● Trực tuyến':'● Đang kết nối lại'}</span></div><div class="stats">${(state?.teams||[]).map(teamBox).join('')}</div></div>`}
+function ui(){if(!code)return `<div class="container-small"><section class="hero" style="padding:23px 0 8px"><p class="eyebrow">VÀO PHE · BÌNH CHỌN · QUẢN LÝ QUÁN PHỞ</p><h1 style="font-size:clamp(35px,8vw,65px)">HAI QUÁN PHỞ.<br><em>CHỌN PHE!</em></h1><p>Bạn có một phiếu quyết định số phận quán phở của đội mình.</p></section><section class="joinbox"><label class="form-label" for="guest-name">Tên hiển thị</label><input class="input" id="guest-name" maxlength="28" placeholder="Ví dụ: Minh Anh" autocomplete="name"><label class="form-label" for="guest-code">Mã phòng 6 ký tự</label><input class="input" id="guest-code" maxlength="6" placeholder="ABC123" value="${e(urlRoom)}" style="text-transform:uppercase;letter-spacing:.18em;font-weight:900"><label class="form-label">Bạn chọn quán nào?</label><div class="team-picker"><button class="pick ${team==='A'?'active':''}" data-team="A">🍜 QUÁN A<br><small class="a-text">ĐỘI XANH</small></button><button class="pick ${team==='B'?'active':''}" data-team="B">🍜 QUÁN B<br><small class="b-text">ĐỘI ĐỎ</small></button></div><div class="toolbar"><button class="btn primary" style="width:100%;margin-top:9px" data-action="enter">THAM GIA TRÒ CHƠI →</button></div><p class="muted">Bạn có thể chơi trên điện thoại hoặc máy tính. Không cần tải ứng dụng.</p></section></div>${bottomNote()}`;
+ if(!state)return `<section class="panel"><h2>Đang kết nối phòng ${e(code)}...</h2><button class="btn" data-action="rejoin">Thử lại</button> <button class="btn ghost" data-action="leave">Thay mã phòng</button></section>`;
+ let html=roomTop();const st=state.status;
+ if(st==='lobby')return html+lobby()+bottomNote();
+ if(st==='voting'){
+   const q=state.scenario?.teams?.[team];if(!q)return html+'<p>Đang tải tình huống của đội...</p>';
+   const hasVoted=state.myVote!==null&&state.myVote!==undefined;
+   html+=`<section class="section eventbox"><div class="title-divider"><div><p class="eyebrow">VÒNG ${state.round+1}/${state.totalRounds} · ${e(state.title)}</p><h2 class="section-title">${e(q.title)}</h2></div><div class="timer" id="clock">⏱ ${Fmt.ticker(state.deadline)}</div></div><p class="team-story">${e(q.story)}</p><p class="question">${e(q.question)}</p><div class="options">${q.options.map((o,i)=>`<button class="option selectable ${selected===i?'selected':''}" data-choice="${i}" ${hasVoted?'disabled':''}><strong>${i+1}.</strong> ${e(o.text)}</button>`).join('')}</div><div class="toolbar"><button class="btn primary" data-action="sendvote" ${selected===null||hasVoted?'disabled':''}>${hasVoted?'✓ ĐÃ BỎ PHIẾU':'🗳 GỬI PHIẾU CỦA TÔI'}</button></div>${hasVoted?'<div class="notice">✅ Phiếu đã được lưu. Bạn hãy chờ Admin công bố biến cố.</div>':'<p class="muted">Mỗi người một phiếu. Sau khi bấm GỬI PHIẾU, bạn không thể đổi lựa chọn.</p>'}</section>`;
+ }
+ if(st==='results')html+=`<section class="section"><p class="eyebrow">VÒNG ${state.round+1} · ĐÃ CÔNG BỐ</p><h2 class="section-title">BIẾN CỐ CỦA PHE ${e(team)}</h2>${resultsPair(state,team)}<div class="screen-note">Số tiền lãi của hai đội cập nhật ở bảng tài chính. Chờ Admin mở vòng tiếp theo.</div></section>`;
+ if(st==='finished')html+=`<section class="section">${endView(state)}</section>`;
+ return html+bottomNote();
+}
+function render(){app.innerHTML=ui();}
+socket.on('connect',()=>{connected=true;if(code&&playerId)rejoin();render();});
+socket.on('disconnect',()=>{connected=false;render();toast('Mất kết nối. Hệ thống đang thử kết nối lại.');});
+socket.on('state',s=>{if(s.code!==code)return;if(state?.round!==s.round||state?.status!==s.status)selected=null;state=s;render()});
+socket.on('notice',m=>toast(m));
+socket.on('game:error',m=>toast(m));
+document.addEventListener('click',ev=>{
+ const bt=ev.target.closest('button');if(!bt||bt.disabled)return;
+ if(bt.dataset.team){team=bt.dataset.team;document.querySelectorAll('[data-team]').forEach(x=>x.classList.toggle('active',x.dataset.team===team));return;}
+ if(bt.dataset.choice!==undefined){selected=Number(bt.dataset.choice);document.querySelectorAll('[data-choice]').forEach(x=>x.classList.toggle('selected',Number(x.dataset.choice)===selected));const b=document.querySelector('[data-action="sendvote"]');if(b)b.disabled=false;return;}
+ if(bt.dataset.action==='enter')enter();
+ if(bt.dataset.action==='sendvote')vote(selected);
+ if(bt.dataset.action==='rejoin')rejoin();
+ if(bt.dataset.action==='leave')disconnectSession();
+});
+setInterval(()=>{const c=document.getElementById('clock');if(c&&state?.status==='voting'){const secs=Math.max(0,Math.ceil((state.deadline-Date.now())/1000));c.textContent='⏱ '+secs+'s';c.classList.toggle('urgent',secs<=10)}},250);
+try{const prev=JSON.parse(sessionStorage.getItem(KEY)||'null');if(prev?.code&&prev?.playerId&&(!urlRoom||urlRoom===prev.code)){({code,name,team,playerId}=prev)}}catch{}
+render();
+</script></body></html>
